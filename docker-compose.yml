@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: subscan-postgres
+    environment:
+      POSTGRES_USER: subscan
+      POSTGRES_PASSWORD: subscan_dev
+      POSTGRES_DB: subscan
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U subscan"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: subscan-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: subscan-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql://subscan:subscan_dev@postgres:5432/subscan
+      - REDIS_URL=redis://redis:6379
+      - APP_URL=http://localhost:3000
+      - API_URL=http://localhost:8080
+      - SHARE_BASE_URL=http://localhost:8080/results
+      - SUBFINDER_SOURCES=crt.sh,alienvault,dnsdumpster
+      - SUBFINDER_TIMEOUT=300
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: subscan-worker
+    command: ["/app/worker"]
+    environment:
+      - DATABASE_URL=postgresql://subscan:subscan_dev@postgres:5432/subscan
+      - REDIS_URL=redis://redis:6379
+      - APP_URL=http://localhost:3000
+      - API_URL=http://localhost:8080
+      - SHARE_BASE_URL=http://localhost:8080/results
+      - SUBFINDER_SOURCES=crt.sh,alienvault,dnsdumpster
+      - SUBFINDER_TIMEOUT=300
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: subscan-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
+      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
