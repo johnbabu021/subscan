@@ -24,7 +24,8 @@ backend/**/*.pyo
 backend/.pytest_cache
 backend/dist
 backend/*.egg-info
-
+backend/api
+backend/worker
 # ── Env files ─────────────────────────────────────────────────────────────────
 .env
 .env.local
