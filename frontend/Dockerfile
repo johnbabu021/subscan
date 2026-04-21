@@ -15,6 +15,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
 # Copy pnpm lockfile and node_modules from deps
 COPY --from=deps /app/node_modules ./node_modules
 
@@ -25,7 +28,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build the application
-RUN pnpm build
+RUN pnpm run build
 
 # Stage 3: Production runner
 FROM node:20-alpine AS runner

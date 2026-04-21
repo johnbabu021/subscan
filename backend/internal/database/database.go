@@ -16,11 +16,6 @@ var DB *gorm.DB
 func Connect(databaseURL string) error {
 	var err error
 
-	config := &postgres.Config{
-		DSN:                  databaseURL,
-		PreferSimpleProtocol: true,
-	}
-
 	DB, err = gorm.Open(postgres.Open(databaseURL), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})

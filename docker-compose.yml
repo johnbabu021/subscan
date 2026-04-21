@@ -41,7 +41,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://subscan:subscan_dev@postgres:5432/subscan
       - REDIS_URL=redis://redis:6379
-      - APP_URL=http://localhost:3000
+      - APP_URL=http://localhost:3001
       - API_URL=http://localhost:8080
       - SHARE_BASE_URL=http://localhost:8080/results
       - SUBFINDER_SOURCES=crt.sh,alienvault,dnsdumpster
@@ -62,7 +62,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://subscan:subscan_dev@postgres:5432/subscan
       - REDIS_URL=redis://redis:6379
-      - APP_URL=http://localhost:3000
+      - APP_URL=http://localhost:3001
       - API_URL=http://localhost:8080
       - SHARE_BASE_URL=http://localhost:8080/results
       - SUBFINDER_SOURCES=crt.sh,alienvault,dnsdumpster
@@ -80,10 +80,10 @@ services:
       dockerfile: Dockerfile
     container_name: subscan-frontend
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8080
-      - NEXT_PUBLIC_APP_URL=http://localhost:3000
+      - NEXT_PUBLIC_APP_URL=http://localhost:3001
     depends_on:
       - backend
     restart: unless-stopped

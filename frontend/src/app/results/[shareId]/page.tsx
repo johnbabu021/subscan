@@ -7,4 +7,4 @@ interface ResultsPageProps {
 }
 
 export default function ResultsPage({ params }: ResultsPageProps) {
-  return <ResultsPageClient shareId={params.shareId} />;
+  return <ResultsPageClient shareId={params.shareId} />}

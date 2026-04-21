@@ -91,8 +91,8 @@ export function ResultsPageClient({ shareId }: { shareId: string }) {
             <span className="font-bold">
               <span className="text-primary">Sub</span>Scan
             </span>
-          </span>
-        </Link>
+          </Link>
+        </div>
       </header>
 
       {/* Main content */}

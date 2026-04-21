@@ -8,3 +8,4 @@ interface ScanPageProps {
 
 export default function ScanPage({ params }: ScanPageProps) {
   return <ScanPageClient jobId={params.jobId} />;
+}

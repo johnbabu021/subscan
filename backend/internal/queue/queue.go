@@ -1,8 +1,7 @@
 package queue
 
 import (
-	"context"
-	"fmt"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/hibiken/asynq"
@@ -17,27 +16,32 @@ var Inspector *asynq.Inspector
 func Connect(cfg *config.Config) error {
 	// Parse Redis URL
 	redisAddr := "localhost:6379"
-	if cfg.RedisURL != "" {
-		// Extract host:port from redis://host:port
-		redisAddr = cfg.RedisURL
-		redisAddr = fmt.Sprintf("%s", cfg.RedisURL[len("redis://"):])
+	if cfg.RedisURL != "" && len(cfg.RedisURL) > len("redis://") {
+		redisAddr = cfg.RedisURL[len("redis://"):]
 	}
 
 	// Create Asynq server
 	Server = asynq.NewServer(
-		asynq.RedisAddrOpt(redisAddr),
-		asynq.MaxConcurrency(10),
-		asynq.MaxRetry(3),
+		asynq.RedisClientOpt{
+			Addr: redisAddr,
+		},
+		asynq.Config{
+			Concurrency: 10,
+		},
 	)
 
 	// Create Asynq client
 	Client = asynq.NewClient(
-		asynq.RedisAddrOpt(redisAddr),
+		asynq.RedisClientOpt{
+			Addr: redisAddr,
+		},
 	)
 
 	// Create inspector
 	Inspector = asynq.NewInspector(
-		asynq.RedisAddrOpt(redisAddr),
+		asynq.RedisClientOpt{
+			Addr: redisAddr,
+		},
 	)
 
 	return nil
@@ -49,7 +53,7 @@ func EnqueueScan(scanID uuid.UUID, domain string) error {
 		Domain: domain,
 	}
 
-	payload, err := task.Marshal()
+	payload, err := json.Marshal(task)
 	if err != nil {
 		return err
 	}
@@ -63,10 +67,6 @@ func EnqueueScan(scanID uuid.UUID, domain string) error {
 
 	_, err = Client.Enqueue(taskInfo)
 	return err
-}
-
-func GetQueueStats() (*asynq.Stats, error) {
-	return Inspector.GlobalQueueStats()
 }
 
 func Shutdown() {
@@ -83,15 +83,7 @@ func Shutdown() {
 
 func StartWorker(worker *worker.Scanner) error {
 	mux := asynq.NewServeMux()
-	mux.Handle("scan", worker)
+	mux.HandleFunc("scan", worker.ProcessScan)
 
 	return Server.Run(mux)
-}
-
-func GetTaskInfo(taskID string) (*asynq.TaskInfo, error) {
-	return Inspector.GetTaskInfo("", taskID)
-}
-
-func DeleteTask(taskID string) error {
-	return Inspector.DeleteTask("", taskID)
 }

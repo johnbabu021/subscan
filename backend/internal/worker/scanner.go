@@ -2,8 +2,10 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,30 +15,15 @@ import (
 	"github.com/subscan/api/internal/models"
 
 	"github.com/projectdiscovery/subfinder/v2/pkg/runner"
+	"github.com/projectdiscovery/subfinder/v2/pkg/resolve"
 )
 
 type Scanner struct {
-	cfg     *config.Config
-	runner  *runner.Runner
+	cfg *config.Config
 }
 
 func NewScanner(cfg *config.Config) (*Scanner, error) {
-	sources := strings.Split(cfg.SubfinderSources, ",")
-	runnerOpts := runner.Config{
-		Sources:    sources,
-		Timeout:    cfg.SubfinderTimeout,
-		AllSources: true,
-	}
-
-	r, err := runner.NewRunner(runnerOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Scanner{
-		cfg:    cfg,
-		runner: r,
-	}, nil
+	return &Scanner{cfg: cfg}, nil
 }
 
 type ScanTask struct {
@@ -46,14 +33,21 @@ type ScanTask struct {
 
 func (s *Scanner) ProcessScan(ctx context.Context, task *asynq.Task) error {
 	var payload ScanTask
-	if err := task.UnmarshalPayload(&payload); err != nil {
+	if err := json.Unmarshal(task.Payload(), &payload); err != nil {
+		log.Printf("Failed to unmarshal task payload: %v", err)
 		return err
 	}
 
 	log.Printf("Starting scan for domain: %s (scan_id: %s)", payload.Domain, payload.ScanID)
 
-	// Update scan status to running
+	// Get database connection
 	db := database.GetDB()
+	if db == nil {
+		log.Printf("ERROR: Database connection is nil!")
+		return nil
+	}
+
+	// Update scan status to running
 	var scan models.Scan
 	if err := db.First(&scan, "id = ?", payload.ScanID).Error; err != nil {
 		log.Printf("Failed to find scan: %v", err)
@@ -61,40 +55,86 @@ func (s *Scanner) ProcessScan(ctx context.Context, task *asynq.Task) error {
 	}
 
 	scan.Status = models.StatusRunning
-	db.Save(&scan)
+	if err := db.Save(&scan).Error; err != nil {
+		log.Printf("Failed to save scan status: %v", err)
+	}
 
-	// Collect subdomains via callback
+	// Thread-safe collection of results
+	var mu sync.Mutex
 	var foundSubdomains []string
-	var sourcesQueried int
+	sources := strings.Split(s.cfg.SubfinderSources, ",")
 
-	s.runner.FindAllDomainsWithCallback(
-		context.Background(),
-		payload.Domain,
-		func(subdomain string) {
-			foundSubdomains = append(foundSubdomains, subdomain)
+	log.Printf("Running subfinder with sources: %v", sources)
+
+	// Create runner with ResultCallback to capture results in real-time
+	r, err := runner.NewRunner(&runner.Options{
+		Sources:    sources,
+		Timeout:    s.cfg.SubfinderTimeout,
+		All:        true,
+		Silent:     true,
+		ResultCallback: func(entry *resolve.HostEntry) {
+			mu.Lock()
+			foundSubdomains = append(foundSubdomains, entry.Host)
+			mu.Unlock()
+
+			log.Printf("Found subdomain: %s from %s", entry.Host, entry.Source)
+
 			// Save subdomain to database
 			sub := models.Subdomain{
 				ScanID:    payload.ScanID,
-				Subdomain: subdomain,
+				Subdomain: entry.Host,
 			}
-			db.Create(&sub)
+			if err := db.Create(&sub).Error; err != nil {
+				log.Printf("ERROR: Failed to save subdomain %s: %v", entry.Host, err)
+			} else {
+				log.Printf("Saved subdomain to DB: %s", entry.Host)
+			}
 
-			// Publish SSE event
-			PublishSubdomain(payload.ScanID, subdomain)
+			// Publish SSE event for real-time update
+			PublishSubdomain(payload.ScanID, entry.Host)
 		},
-	)
+	})
+	if err != nil {
+		log.Printf("Failed to create runner: %v", err)
+		return err
+	}
 
-	sourcesQueried = len(strings.Split(s.cfg.SubfinderSources, ","))
+	// Run enumeration
+	waitCtx, cancel := context.WithTimeout(context.Background(), time.Duration(s.cfg.SubfinderTimeout)*time.Second)
+	defer cancel()
+
+	err = r.EnumerateSingleDomainWithCtx(waitCtx, payload.Domain, nil)
+	if err != nil {
+		log.Printf("Enumeration error: %v", err)
+	}
+
+	// Get final count
+	mu.Lock()
+	totalFound := len(foundSubdomains)
+	mu.Unlock()
+
+	log.Printf("Scan finished. Found %d subdomains", totalFound)
 
 	// Update scan as completed
-	now := time.Now()
-	scan.Status = models.StatusCompleted
-	scan.TotalFound = len(foundSubdomains)
-	scan.SourcesQueried = sourcesQueried
-	scan.CompletedAt = &now
-	db.Save(&scan)
+	var finalScan models.Scan
+	if err := db.First(&finalScan, "id = ?", payload.ScanID).Error; err != nil {
+		log.Printf("Failed to find scan for final update: %v", err)
+		return err
+	}
 
-	log.Printf("Scan completed for %s: found %d subdomains", payload.Domain, len(foundSubdomains))
+	now := time.Now()
+	finalScan.Status = models.StatusCompleted
+	finalScan.TotalFound = totalFound
+	finalScan.SourcesQueried = len(sources)
+	finalScan.CompletedAt = &now
+
+	if err := db.Save(&finalScan).Error; err != nil {
+		log.Printf("Failed to save final scan status: %v", err)
+	} else {
+		log.Printf("Updated scan with total_found: %d", totalFound)
+	}
+
+	log.Printf("Scan completed for %s: found %d subdomains", payload.Domain, totalFound)
 
 	return nil
 }

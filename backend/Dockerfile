@@ -37,9 +37,6 @@ COPY --from=builder /app/worker /app/worker
 # Create directories for output
 RUN mkdir -p /app/output
 
-# Change ownership
-chown -R appuser:appgroup /app
-
 # Switch to non-root user
 USER appuser
 

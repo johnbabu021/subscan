@@ -4,26 +4,26 @@
 
 @layer base {
   :root {
-    --background: 0 0% 4%;
-    --foreground: 0 0% 100%;
-    --card: 0 0% 6%;
-    --card-foreground: 0 0% 100%;
-    --popover: 0 0% 6%;
-    --popover-foreground: 0 0% 100%;
+    --background: 0 0% 2%;
+    --foreground: 0 0% 95%;
+    --card: 0 0% 5%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 5%;
+    --popover-foreground: 0 0% 95%;
     --primary: 187 100% 50%;
-    --primary-foreground: 0 0% 4%;
+    --primary-foreground: 0 0% 5%;
     --secondary: 0 0% 10%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary-foreground: 0 0% 95%;
     --muted: 0 0% 10%;
-    --muted-foreground: 0 0% 60%;
-    --accent: 0 0% 10%;
-    --accent-foreground: 187 100% 50%;
+    --muted-foreground: 0 0% 50%;
+    --accent: 187 100% 50%;
+    --accent-foreground: 0 0% 5%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive-foreground: 0 0% 95%;
     --border: 0 0% 15%;
     --input: 0 0% 15%;
     --ring: 187 100% 50%;
-    --radius: 0.5rem;
+    --radius: 0.75rem;
   }
 }
 
@@ -39,21 +39,21 @@
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(0 0% 10%);
+  background: rgba(0, 255, 255, 0.05);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(187 100% 50% / 0.3);
-  border-radius: 4px;
+  background: rgba(0, 255, 255, 0.2);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(187 100% 50% / 0.5);
+  background: rgba(0, 255, 255, 0.3);
 }
 
 /* Glow effects */
@@ -71,4 +71,56 @@
   font-family: 'Courier New', monospace;
   color: #00ff00;
   text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(90deg, #00f2ff, #3b82f6, #00f2ff);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient-shift 3s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% center; }
+  50% { background-position: 200% center; }
+}
+
+/* Scan line animation */
+@keyframes scan-line {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+.animate-scan-line {
+  animation: scan-line 2s linear infinite;
+}
+
+/* Pulse ring */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
